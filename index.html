@@ -94,6 +94,15 @@ th{color:var(--sub);font-weight:600}
 .help{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:6px;border-radius:50%;border:1px solid var(--line);color:var(--sub);font-size:.72rem;font-weight:600;cursor:pointer;vertical-align:middle}
 #helpBox{position:fixed;z-index:50;max-width:320px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.85rem;line-height:1.45;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 #helpBox b{display:block;margin-bottom:4px}
+#guia{position:fixed;right:18px;bottom:18px;z-index:40;width:340px;max-width:calc(100vw - 24px);background:var(--panel);color:var(--ink);border:1px solid var(--accent);border-radius:12px;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:.88rem;line-height:1.45}
+#guia.min{width:auto;padding:8px 14px;cursor:pointer}
+#guia .gh{display:flex;align-items:center;gap:4px;margin-bottom:6px;color:var(--sub)}
+#guia .gh b{flex:1;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em}
+#guia .gh button{background:none;border:none;color:var(--sub);cursor:pointer;font-size:1rem;padding:2px 6px}
+#guia .gt{font-weight:700;font-size:1rem;margin-bottom:4px}
+#guia .ga,#guia .gx{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#guia .btn{padding:7px 12px;font-size:.82rem}
+@media print{#guia{display:none!important}}
 #relBox{display:none}
 @media print{.tabs{display:none}body.print-rel{background:#fff!important}body.print-rel .tab,body.print-rel header{display:none!important}body.print-rel #relBox{display:block!important;color:#000;background:#fff}#relBox table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}#relBox th,#relBox td{border:1px solid #999;padding:4px 6px;text-align:left;color:#000}#relBox h2,#relBox h3,#relBox p{color:#000}}
 </style>
@@ -462,6 +471,7 @@ th{color:var(--sub);font-weight:600}
 </main>
 <div id="relBox"></div>
 <div id="helpBox" hidden></div>
+<div id="guia" hidden></div>
 
 <script>
 let tipo = 'MEI';
@@ -1248,7 +1258,7 @@ async function gravaBk(){
     bkSt();
   }catch(e){bkSt('Falha ao gravar o backup automático.');}
 }
-function agendaBk(){if(!bkH)return;clearTimeout(bkT);bkT=setTimeout(gravaBk,1500);}
+function agendaBk(){guiaTick();if(!bkH)return;clearTimeout(bkT);bkT=setTimeout(gravaBk,1500);}
 async function bkSt(erro){
   const el=g('bkStatus');
   if(!window.showSaveFilePicker){el.innerHTML='<div class="alert warn">Este navegador não suporta a função. Use o Chrome ou o Edge no computador, ou continue baixando o backup manualmente.</div>';g('bkAtivar').disabled=true;g('bkOff').disabled=true;return;}
@@ -1259,12 +1269,12 @@ async function bkSt(erro){
 }
 async function bkInit(){
   if(window.showSaveFilePicker){try{bkH=(await cfg('readonly',s=>s.get('bkHandle')))||null;}catch(e){bkH=null;}}
-  await bkSt();if(!g('tab-painel').hidden)painel();
+  await bkSt();bkPronto=true;if(!g('tab-painel').hidden)painel();else guiaTick();
 }
 g('bkAtivar').onclick=async()=>{
   try{
     const h=await showSaveFilePicker({suggestedName:'gestao-mei-backup.json',types:[{description:'Backup JSON',accept:{'application/json':['.json']}}]});
-    bkH=h;await cfg('readwrite',s=>s.put(h,'bkHandle'));await gravaBk();
+    bkH=h;guiaTick();await cfg('readwrite',s=>s.put(h,'bkHandle'));await gravaBk();
   }catch(e){if(!e||e.name!=='AbortError')bkSt('Não foi possível ativar: '+(e&&e.message||e));}
 };
 g('bkOff').onclick=async()=>{bkH=null;clearTimeout(bkT);try{await cfg('readwrite',s=>s.delete('bkHandle'));}catch(e){}bkSt();};
@@ -1307,8 +1317,8 @@ document.addEventListener('click',e=>{
   bx.style.top=Math.max(8,Math.min(r.bottom+8,innerHeight-bx.offsetHeight-8))+'px';
 });
 function glos(){g('gloss').innerHTML=Object.values(HELP).map(d=>'<div style="margin-bottom:12px"><b>'+esc(d[0])+'</b><div class="subnote" style="font-size:.88rem">'+esc(d[1])+'</div></div>').join('');}
-g('gPassos').onclick=()=>{OB.passosOk=false;saveOB();aba('painel');};
-function passos(){
+g('gPassos').onclick=()=>{OB.passosOk=false;OB.guiaSkip=[];gCur=null;gFim=false;gMin=false;saveOB();aba('painel');guia(false,true);};
+function passos(){guia();g('pPassos').style.display='none';return;
   const el=g('pPassos'),ps=[
     ['Escolha seu regime (MEI ou ME) na aba Obrigações.','obr',!!OB.regOk],
     ['Lance as receitas e despesas do mês na aba Lançamentos.','lanc',L.length>0],
@@ -1322,6 +1332,66 @@ function passos(){
   el.innerHTML='<h2>Primeiros passos ('+fe+' de '+ps.length+')</h2>'+ps.map(x=>'<div class="hist-item"><span>'+(x[2]?'✔ <s>'+esc(x[0])+'</s>':'○ <a href="#" data-go="'+x[1]+'">'+esc(x[0])+'</a>')+'</span></div>').join('')+'<div class="actions" style="margin-top:10px"><button class="btn" id="pPassosOff" type="button">Ocultar este guia</button></div>';
 }
 g('pPassos').onclick=e=>{const go=e.target.dataset.go;if(go){e.preventDefault();aba(go);}else if(e.target.id==='pPassosOff'){OB.passosOk=true;saveOB();passos();}};
+let gCur=null,gTk=null,gBusy=false,gMin=false,gFim=false,bkPronto=false;
+const guiaTick=()=>{clearTimeout(gTk);gTk=setTimeout(()=>guia(),200);};
+const GP=[
+  {id:'reg',tab:'obr',t:'Escolha o seu regime',d:'Isso define quais prazos e relatórios aparecem no app. Se tiver dúvida, pergunte ao contador. MEI é o microempreendedor individual; ME é a microempresa no Simples Nacional.',x:'<div class="gx"><button class="btn" data-g="mei">Sou MEI</button><button class="btn" data-g="me">Sou ME (Simples)</button></div>',ok:()=>!!OB.regOk},
+  {id:'lanc',tab:'lanc',t:'Lance sua primeira receita ou despesa',d:'Na aba Lançamentos, escolha Receita (nota emitida) ou Despesa (nota recebida), informe data e valor e clique em Salvar. Quanto mais completo o lançamento, com número da nota e cliente, melhores ficam os relatórios.',ok:()=>L.length>0},
+  {id:'cli',tab:'cli',t:'Cadastre clientes com mensalidade',d:'Se você cobra mensalidades, cadastre cada cliente na aba Clientes: o app cria a cobrança todo mês e mostra quem está em atraso. Se não tem esse tipo de cliente, pule este passo.',ok:()=>R.some(r=>r.cli)},
+  {id:'orc',tab:'painel',sc:'pOrc',t:'Defina tetos de gasto',d:'No Painel, no card Orçamento do mês por categoria, digite o máximo que quer gastar em cada categoria. O app avisa quando você chegar a 80%.',ok:()=>Object.keys(OB.orc||{}).length>0},
+  {id:'bk',tab:'dados',sc:'bkAtivar',t:'Ative o backup automático',d:'Na aba Dados e backup, clique em Escolher arquivo e ativar e escolha uma pasta do Google Drive ou do OneDrive. Assim seus dados ficam protegidos mesmo se o navegador for limpo.',ok:()=>!!bkH||!window.showSaveFilePicker},
+  {id:'das',tab:'obr',t:'Confira o DAS do mês',d:'Na aba Obrigações, veja a data de vencimento do DAS e, depois de pagar a guia, marque como feito. O painel avisa quando algum prazo estiver chegando.',ok:()=>OB.feitos.length>0}
+];
+function guiaDraw(){
+  const box=g('guia'),p=GP.find(z=>z.id===gCur);
+  if(!p){box.hidden=true;return;}
+  const n=GP.indexOf(p)+1;
+  box.hidden=false;
+  if(gMin){box.className='min';box.innerHTML='<span>❓ Guia: passo '+n+' de '+GP.length+'</span>';return;}
+  box.className='';
+  box.innerHTML='<div class="gh"><b>Passo '+n+' de '+GP.length+'</b><button data-g="min" title="Minimizar">–</button><button data-g="fechar" title="Fechar o guia">✕</button></div><div class="gt">'+p.t+'</div><div>'+p.d+'</div>'+(p.x||'')+'<div class="ga"><button class="btn" data-g="ir">Ir para a aba</button><button class="btn" data-g="pular">Pular este passo</button></div>';
+}
+function proximo(nav){
+  const sk=OB.guiaSkip||[],pend=GP.filter(p=>!p.ok()&&!sk.includes(p.id)),box=g('guia');
+  if(!pend.length){
+    gFim=true;gCur=null;OB.passosOk=true;saveOB();
+    box.hidden=false;box.className='';
+    box.innerHTML='<div class="gt">🎉 Tudo pronto!</div><div>Você concluiu os primeiros passos. Se tiver dúvidas, use a aba Ajuda: lá tem o glossário e dá para reabrir este guia.</div><div class="ga"><button class="btn" data-g="fechar">Fechar</button></div>';
+    return;
+  }
+  gCur=pend[0].id;gMin=false;
+  if(nav)aba(pend[0].tab);
+  guiaDraw();
+}
+function guia(pulou,forcar){
+  if(gFim||gBusy||!bkPronto)return;
+  if(OB.passosOk&&!forcar){g('guia').hidden=true;return;}
+  const sk=OB.guiaSkip||[],cur=GP.find(p=>!p.ok()&&!sk.includes(p.id)),prev=GP.find(p=>p.id===gCur);
+  if(cur&&cur.id===gCur){guiaDraw();return;}
+  if(!prev){
+    if(cur){gCur=cur.id;gMin=false;guiaDraw();}
+    else if(forcar)proximo(false);
+    else{OB.passosOk=true;saveOB();g('guia').hidden=true;}
+    return;
+  }
+  if(prev.ok()&&!pulou){
+    gBusy=true;
+    const box=g('guia');box.hidden=false;box.className='';
+    box.innerHTML='<div class="gt">✔ Passo concluído!</div><div>'+(cur?'Vamos para o próximo…':'Quase lá…')+'</div>';
+    setTimeout(()=>{gBusy=false;proximo(true);},1400);
+  }else proximo(true);
+}
+g('guia').onclick=e=>{
+  const box=g('guia');
+  if(box.classList.contains('min')){gMin=false;guiaDraw();return;}
+  const el=e.target.closest('[data-g]');if(!el)return;
+  const a=el.dataset.g,p=GP.find(z=>z.id===gCur);
+  if(a==='min'){gMin=true;guiaDraw();}
+  else if(a==='fechar'){OB.passosOk=true;gFim=false;gCur=null;saveOB();box.hidden=true;}
+  else if(a==='ir'&&p){aba(p.tab);if(p.sc)setTimeout(()=>{const t=g(p.sc);if(t)t.scrollIntoView({behavior:'smooth',block:'center'});},80);}
+  else if(a==='pular'&&p){OB.guiaSkip=(OB.guiaSkip||[]).concat(p.id);saveOB();guia(true);}
+  else if(a==='mei'||a==='me'){OB.reg=a;OB.regOk=true;g('oReg').value=a;saveOB();guia();}
+};
 function aba(n){
   document.querySelectorAll('.tab').forEach(t=>t.hidden=t.id!=='tab-'+n);
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.t===n));
